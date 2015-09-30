@@ -10,13 +10,21 @@ Usage is very simple and straightforward:
 $("some_selector").scrollintoview();
 ```
 
-And that's it really. This is of course if we use defaults. It also supports some configuration possibilities that should be provided as an `options` object along with the call:
+Also supported is a function that will scroll to the top of the scrollable element: `scrolltotop`:
 
-* **duration** (default: "fast") - specified the same as with jQuery animate function; it can be provided as a string (slow, normal, fast) or a number of milliseconds that specifies animation duration
-* **direction** (default: "both") - scrolling can be performed in three different directions:
+```javascript
+$("some_selector").scrolltotop();
+```
+
+When both functions, aliases for camelCase are also supported: `scrollIntoView` and `scrollToTop`.
+
+And that's it really. This is of course if we use defaults. It supports the same arguments as `jQuery.animate()`, but, if a single `options` object is passed in, other options, specific to this library can also be specified. In all cases, the jQuery defaults are used if they aren't specified.
+
+* **direction** (default: "both"; ignored for `scrolltotop`) - scrolling can be performed in three different directions:
     * **x** or **horizontal**
     * **y** or **vertical**
     * **both** - scrolling will perform in both directions; since scrolling is performed only when element is actually out of view this simply means that scrolling may only perform in one direction even though you set it to scroll in both directions; *both* is therefore the most reliable scrolling option that will make sure your element will be visible
+* **topOffset** (default: 0, ignored for `scrollintoview`) - when using the `scrolltotop` function, this will be added to the top to move the content down (or up) relative to the top of the scrollable element; this is ignored with `scrollintoview`
 * **complete** function - this is the complete handler function that will get called when scrolling completes; it runs in context of scrollable element; this function will be called regardless whether scrolling will perform or not (when element already in view); *but* it won't get called when there's no scrollable element (context can't be determined)
 
 ```javascript
@@ -29,13 +37,23 @@ $("some_selector").scrollintoview({
 });
 ```
 
+```javascript
+$("some_selector").scrolltotop({
+    duration: 2500,
+    topOffset: 10,
+    complete: function() {
+        // highlight the element so user's focus gets where it needs to be
+    }
+});
+```
+
 How does this plugin solve the user experience issue
 --
 This plugin scrolls a particular element into view similar to browser built-in functionality (DOM's `scrollIntoView()` function), but works differently (and arguably more user friendly):
 
-* it only scrolls to element when element is actually out of view; if element is in view (anywhere in visible document area), no scrolling will be performed;
-* it scrolls using animation effects; when scrolling is performed users know exactly they're not redirected anywhere, but actually see that they're simply moved somewhere else within the same page (as well as in which direction they moved);
-* there's always the smallest amount of scrolling being applied; when element is above the visible document area it will be scrolled to the top of visible area; when element is below the visible are it will be scrolled to the bottom of visible area; this is the most consistent way of scrolling - when scrolling would always be to top it sometimes couldn't scroll an element to top when it was close to the bottom of scrollable container (thus scrolling would be unpredictable);
+* it only scrolls to element when element is actually out of view; if element is in view (anywhere in visible document area), no scrolling will be performed, except for `scrolltotop` which will try scrolling no matter what to make sure the element is at the top;
+* it scrolls using animation effects like any jQuery animation which can be specified just like the `jQuery.animate()` function; when scrolling is performed users know exactly they're not redirected anywhere, but actually see that they're simply moved somewhere else within the same page (as well as in which direction they moved);
+* there's always the smallest amount of scrolling being applied; when element is above the visible document area it will be scrolled to the top of visible area; when element is below the visible are it will be scrolled to the bottom of visible area; this is the most consistent way of scrolling - when scrolling would always be to top it sometimes couldn't scroll an element to top when it was close to the bottom of scrollable container (thus scrolling would be unpredictable); for that reason, a separate `scolltotop` function is available for those that want this functionality;
 * when element's size exceeds the size of visible document area its top-left corner is the one that will be scrolled to;
 
 What about :scrollable selector filter

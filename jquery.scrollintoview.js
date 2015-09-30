@@ -2,6 +2,7 @@
  * jQuery scrollintoview() plugin and :scrollable selector filter
  *
  * Version 1.8 (14 Jul 2011)
+ * Version 1.9 (30 Sept 2015) - Chris Barth
  * Requires jQuery 1.4 or newer
  *
  * Copyright (c) 2011 Robert Koritnik
@@ -19,8 +20,8 @@
 	};
 
 	var settings = {
-		duration: "fast",
-		direction: "both"
+		direction: "both",
+		topOffset: 0
 	};
 
 	var rootrx = /^(?:html)$/i;
@@ -70,97 +71,152 @@
 		};
 	};
 
+	function doScroll(scroller, animOptions, options) {
+		if (rootrx.test(scroller[0].nodeName))
+		{
+			scroller = $("html,body");
+		}
+		scroller
+			.animate(animOptions, options)
+			.eq(0) // we want function to be called just once (ref. "html,body")
+			.queue(function (next) {
+				$.isFunction(options.complete) && options.complete.call(scroller[0]);
+				next();
+			});
+
+	}
+
+	function parseArgumentToOptions() {
+		var options = {};
+
+		if (arguments.length > 0) {
+			if (typeof arguments[0][0] !== "object") {
+				options.duration = arguments[0][0];
+				if (arguments[0].length > 1) {
+					options.easing = arguments[0][1];
+					if (arguments[0].length > 2) {
+						options.complete = arguments[0][2];
+					}
+				}
+			} else {
+				options = $.extend(options, arguments[0][0]);
+			}
+		}
+
+		options = $.extend({}, settings, options);
+		options.direction = converter[typeof (options.direction) === "string" && options.direction.toLowerCase()] || converter.both;
+
+		if (options.direction.x === true) {
+			options.direction.selector = "horizontal";
+		}
+		if (options.direction.y === true) {
+			options.direction.selector = options.direction.selector ? "both" : "vertical";
+		}
+
+		return options;
+	}
+
 	$.fn.extend({
-		scrollintoview: function (options) {
-			/// <summary>Scrolls the first element in the set into view by scrolling its closest scrollable parent.</summary>
-			/// <param name="options" type="Object">Additional options that can configure scrolling:
-			///        duration (default: "fast") - jQuery animation speed (can be a duration string or number of milliseconds)
-			///        direction (default: "both") - select possible scrollings ("vertical" or "y", "horizontal" or "x", "both")
-			///        complete (default: none) - a function to call when scrolling completes (called in context of the DOM element being scrolled)
-			/// </param>
-			/// <return type="jQuery">Returns the same jQuery set that this function was run on.</return>
+		scrollIntoView: ScrollIntoView,
+		scrollintoview: ScrollIntoView,
+		scrollToTop: ScrollToTop,
+		scrolltotop: ScrollToTop
+	});
 
-			options = $.extend({}, settings, options);
-			options.direction = converter[typeof (options.direction) === "string" && options.direction.toLowerCase()] || converter.both;
+	function ScrollIntoView() {
+		/// <summary>Scrolls the first element in the set into view by scrolling its closest scrollable parent.</summary>
+		/// <param name="options" type="Object">Additional options that can configure scrolling:
+		///        duration (default: "fast") - jQuery animation speed (can be a duration string or number of milliseconds)
+		///        direction (default: "both") - select possible scrollings ("vertical" or "y", "horizontal" or "x", "both")
+		///        complete (default: none) - a function to call when scrolling completes (called in context of the DOM element being scrolled)
+		/// </param>
+		/// <return type="jQuery">Returns the same jQuery set that this function was run on.</return>
 
-			var dirStr = "";
-			if (options.direction.x === true) dirStr = "horizontal";
-			if (options.direction.y === true) dirStr = dirStr ? "both" : "vertical";
+		var options = parseArgumentToOptions(arguments);
 
-			var el = this.eq(0);
-			var scroller = el.closest(":scrollable(" + dirStr + ")");
+		var el = this.eq(0);
+		var scroller = el.closest(":scrollable(" + options.direction.selector + ")");
 
-			// check if there's anything to scroll in the first place
-			if (scroller.length > 0)
+		// check if there's anything to scroll in the first place
+		if (scroller.length > 0)
+		{
+			scroller = scroller.eq(0);
+
+			var dim = {
+				e: dimensions(el),
+				s: dimensions(scroller)
+			};
+
+			var rel = {
+				top: dim.e.rect.top - (dim.s.rect.top + dim.s.border.top),
+				bottom: dim.s.rect.bottom - dim.s.border.bottom - dim.s.scrollbar.bottom - dim.e.rect.bottom,
+				left: dim.e.rect.left - (dim.s.rect.left + dim.s.border.left),
+				right: dim.s.rect.right - dim.s.border.right - dim.s.scrollbar.right - dim.e.rect.right
+			};
+
+			var animOptions = {};
+
+			// vertical scroll
+			if (options.direction.y === true)
 			{
-				scroller = scroller.eq(0);
-
-				var dim = {
-					e: dimensions(el),
-					s: dimensions(scroller)
-				};
-
-				var rel = {
-					top: dim.e.rect.top - (dim.s.rect.top + dim.s.border.top),
-					bottom: dim.s.rect.bottom - dim.s.border.bottom - dim.s.scrollbar.bottom - dim.e.rect.bottom,
-					left: dim.e.rect.left - (dim.s.rect.left + dim.s.border.left),
-					right: dim.s.rect.right - dim.s.border.right - dim.s.scrollbar.right - dim.e.rect.right
-				};
-
-				var animOptions = {};
-
-				// vertical scroll
-				if (options.direction.y === true)
+				if (rel.top < 0)
 				{
-					if (rel.top < 0)
-					{
-						animOptions.scrollTop = dim.s.scroll.top + rel.top;
-					}
-					else if (rel.top > 0 && rel.bottom < 0)
-					{
-						animOptions.scrollTop = dim.s.scroll.top + Math.min(rel.top, -rel.bottom);
-					}
+					animOptions.scrollTop = dim.s.scroll.top + rel.top;
 				}
-
-				// horizontal scroll
-				if (options.direction.x === true)
+				else if (rel.top > 0 && rel.bottom < 0)
 				{
-					if (rel.left < 0)
-					{
-						animOptions.scrollLeft = dim.s.scroll.left + rel.left;
-					}
-					else if (rel.left > 0 && rel.right < 0)
-					{
-						animOptions.scrollLeft = dim.s.scroll.left + Math.min(rel.left, -rel.right);
-					}
-				}
-
-				// scroll if needed
-				if (!$.isEmptyObject(animOptions))
-				{
-					if (rootrx.test(scroller[0].nodeName))
-					{
-						scroller = $("html,body");
-					}
-					scroller
-						.animate(animOptions, options.duration)
-						.eq(0) // we want function to be called just once (ref. "html,body")
-						.queue(function (next) {
-							$.isFunction(options.complete) && options.complete.call(scroller[0]);
-							next();
-						});
-				}
-				else
-				{
-					// when there's nothing to scroll, just call the "complete" function
-					$.isFunction(options.complete) && options.complete.call(scroller[0]);
+					animOptions.scrollTop = dim.s.scroll.top + Math.min(rel.top, -rel.bottom);
 				}
 			}
 
-			// return set back
-			return this;
+			// horizontal scroll
+			if (options.direction.x === true)
+			{
+				if (rel.left < 0)
+				{
+					animOptions.scrollLeft = dim.s.scroll.left + rel.left;
+				}
+				else if (rel.left > 0 && rel.right < 0)
+				{
+					animOptions.scrollLeft = dim.s.scroll.left + Math.min(rel.left, -rel.right);
+				}
+			}
+
+			// scroll if needed
+			if (!$.isEmptyObject(animOptions))
+			{
+				doScroll(scroller, animOptions, options);
+			}
+			else
+			{
+				// when there's nothing to scroll, just call the "complete" function
+				$.isFunction(options.complete) && options.complete.call(scroller[0]);
+			}
 		}
-	});
+
+		// return set back
+		return this;
+	}
+
+	function ScrollToTop() {
+		var options = parseArgumentToOptions(arguments);
+
+		var el = this.eq(0);
+		var scroller = el.closest(":scrollable(vertical)");
+
+		// check if there's anything to scroll in the first place
+		if (scroller.length > 0) {
+			scroller = scroller.eq(0);
+
+			var animOptions = {};
+			animOptions.scrollTop = scroller.scrollTop() + el.offset().top - scroller.offset().top - parseInt(options.topOffset, 10);
+
+			doScroll(scroller, animOptions, options);
+		}
+
+		// return set back
+		return this;
+	}
 
 	var scrollValue = {
 		auto: true,
